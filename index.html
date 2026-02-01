@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h1>ESP32 Remote LED</h1>
+
+<button onclick="setCmd('P')">LED ON</button>
+<button onclick="setCmd('O')">LED OFF</button>
+
+<script>
+async function setCmd(cmd){
+  await fetch('/api/set?cmd=' + cmd);
+  alert("Command: " + cmd);
+}
+</script>
+
+</body>
+</html>
