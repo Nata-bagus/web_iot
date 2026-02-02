@@ -8,10 +8,11 @@
 
 <script>
 async function setCmd(cmd){
-  await fetch('/api/set?cmd=' + cmd);
+  await fetch('/api/cmd?cmd=' + cmd);
   alert("Command: " + cmd);
 }
 </script>
 
 </body>
 </html>
+
