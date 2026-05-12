@@ -1,19 +1,326 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32 IoT Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 28px;
+      letter-spacing: 0.5px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid #334155;
+    }
+
+    .card.full { grid-column: 1 / -1; }
+
+    .card-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+
+    /* ── Sensor Card ───────────────────────── */
+    .distance-value {
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: #38bdf8;
+      line-height: 1;
+    }
+
+    .distance-unit {
+      font-size: 1.2rem;
+      color: #64748b;
+      margin-left: 6px;
+    }
+
+    .distance-bar-wrap {
+      background: #0f172a;
+      border-radius: 99px;
+      height: 10px;
+      margin-top: 16px;
+      overflow: hidden;
+    }
+
+    .distance-bar {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+
+    .distance-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: #475569;
+      margin-top: 6px;
+    }
+
+    /* ── Status Card ───────────────────────── */
+    .status-dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #22c55e;
+      margin-right: 8px;
+      animation: pulse 1.5s infinite;
+    }
+
+    .status-dot.offline { background: #ef4444; animation: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .status-text { font-size: 0.95rem; }
+    .last-update { font-size: 0.75rem; color: #475569; margin-top: 8px; }
+
+    /* ── LED Control Card ──────────────────── */
+    .btn-row { display: flex; gap: 12px; margin-top: 4px; }
+
+    .btn {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    .btn-on  { background: #fbbf24; color: #1e293b; }
+    .btn-off { background: #334155; color: #94a3b8; }
+    .btn-on.active  { background: #f59e0b; box-shadow: 0 0 16px #fbbf2466; }
+    .btn-off.active { background: #1e293b; color: #64748b; }
+
+    .led-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+
+    .led-bulb {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: #1e293b;
+      border: 2px solid #334155;
+      transition: all 0.3s;
+    }
+
+    .led-bulb.on {
+      background: #fde047;
+      border-color: #fbbf24;
+      box-shadow: 0 0 12px #fde04799;
+    }
+
+    /* ── History ───────────────────────────── */
+    #history-list {
+      list-style: none;
+      max-height: 140px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    #history-list li {
+      font-size: 0.78rem;
+      color: #64748b;
+      padding: 4px 0;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    #history-list li span { color: #38bdf8; }
+  </style>
+</head>
 <body>
-<h1>ESP32 Remote LED</h1>
+  <h1>🌐 ESP32 IoT Dashboard</h1>
 
-<button onclick="setCmd('P')">LED ON</button>
-<button onclick="setCmd('O')">LED OFF</button>
+  <div class="grid">
 
-<script>
-async function setCmd(cmd){
-  await fetch('/api/cmd?cmd=' + cmd);
-  alert("Command: " + cmd);
-}
-</script>
+    <!-- Sensor -->
+    <div class="card full">
+      <div class="card-title">📡 Jarak Ultrasonic (HC-SR04)</div>
+      <div>
+        <span class="distance-value" id="dist-val">—</span>
+        <span class="distance-unit">cm</span>
+      </div>
+      <div class="distance-bar-wrap">
+        <div class="distance-bar" id="dist-bar"></div>
+      </div>
+      <div class="distance-label"><span>0 cm</span><span>400 cm</span></div>
+    </div>
 
+    <!-- Status -->
+    <div class="card">
+      <div class="card-title">🔌 Status ESP32</div>
+      <div>
+        <span class="status-dot" id="status-dot"></span>
+        <span class="status-text" id="status-text">Menghubungkan…</span>
+      </div>
+      <div class="last-update" id="last-update">Belum ada data</div>
+    </div>
+
+    <!-- LED Control -->
+    <div class="card">
+      <div class="card-title">💡 Kontrol LED</div>
+      <div class="btn-row">
+        <button class="btn btn-on"  onclick="setCmd('P')">ON</button>
+        <button class="btn btn-off" onclick="setCmd('O')">OFF</button>
+      </div>
+      <div class="led-indicator">
+        <div class="led-bulb" id="led-bulb"></div>
+        <span id="led-label">LED mati</span>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="card full">
+      <div class="card-title">📋 Riwayat Jarak</div>
+      <ul id="history-list"><li><span>Menunggu data…</span></li></ul>
+    </div>
+
+  </div>
+
+  <script>
+    const API = '';          // kosong = pakai domain yang sama (Vercel)
+    const MAX_JARAK = 400;   // batas atas bar (cm)
+    const MAX_HISTORY = 20;
+
+    let ledState = 'O';
+    let history  = [];
+    let offlineTimer = null;
+
+    // ── Fetch sensor ──────────────────────────────
+    async function fetchSensor() {
+      try {
+        const res  = await fetch(API + '/api/sensor');
+        const data = await res.json();
+
+        if (data.distance === null) return; // belum ada data
+
+        const d = parseFloat(data.distance).toFixed(1);
+
+        // Update nilai
+        document.getElementById('dist-val').textContent = d;
+
+        // Update bar (max 400 cm)
+        const pct = Math.min((d / MAX_JARAK) * 100, 100);
+        document.getElementById('dist-bar').style.width = pct + '%';
+
+        // Status online
+        setOnline(true, data.updatedAt);
+
+        // History
+        addHistory(d, data.updatedAt);
+
+      } catch (e) {
+        setOnline(false);
+      }
+    }
+
+    // ── Set LED command ───────────────────────────
+    async function setCmd(cmd) {
+      try {
+        await fetch(API + '/api/cmd?cmd=' + cmd);
+        ledState = cmd;
+        updateLED();
+      } catch (e) {
+        alert('Gagal mengirim perintah.');
+      }
+    }
+
+    // ── Update tampilan LED ───────────────────────
+    function updateLED() {
+      const on    = ledState === 'P';
+      const bulb  = document.getElementById('led-bulb');
+      const label = document.getElementById('led-label');
+      bulb.classList.toggle('on', on);
+      label.textContent = on ? 'LED menyala' : 'LED mati';
+
+      document.querySelector('.btn-on').classList.toggle('active', on);
+      document.querySelector('.btn-off').classList.toggle('active', !on);
+    }
+
+    // ── Status online/offline ─────────────────────
+    function setOnline(online, updatedAt) {
+      const dot  = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      const upd  = document.getElementById('last-update');
+
+      if (online) {
+        dot.classList.remove('offline');
+        text.textContent = 'Terhubung';
+        if (updatedAt) {
+          const d = new Date(updatedAt);
+          upd.textContent = 'Update: ' + d.toLocaleTimeString('id-ID');
+        }
+        clearTimeout(offlineTimer);
+      } else {
+        dot.classList.add('offline');
+        text.textContent = 'Offline / Error';
+      }
+    }
+
+    // ── Riwayat ───────────────────────────────────
+    function addHistory(distance, updatedAt) {
+      const now = updatedAt
+        ? new Date(updatedAt).toLocaleTimeString('id-ID')
+        : new Date().toLocaleTimeString('id-ID');
+
+      history.unshift({ distance, time: now });
+      if (history.length > MAX_HISTORY) history.pop();
+
+      const ul = document.getElementById('history-list');
+      ul.innerHTML = history
+        .map(h => `<li><span>${h.distance} cm</span> <span>${h.time}</span></li>`)
+        .join('');
+    }
+
+    // ── Main loop ─────────────────────────────────
+    updateLED();
+    fetchSensor();
+    setInterval(fetchSensor, 1000);   // polling tiap 1 detik
+  </script>
 </body>
 </html>
-
-
